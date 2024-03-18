@@ -1,6 +1,25 @@
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 import csv
+
+def format_course_codes(prereq_element):
+    if not prereq_element:
+        return "None"
+    if not prereq_element.find('a'):
+        return prereq_element.get_text().replace('Prerequisite(s): ', '').strip()
+    groups = []
+    current_group = []
+    for child in prereq_element.children:
+        if child.name == 'a':
+            course_code = child.get_text().replace(u'\xa0', u' ')
+            current_group.append(course_code)
+        elif isinstance(child, NavigableString) and ';' in child:
+            if current_group:
+                groups.append('/'.join(current_group))
+                current_group = []
+    if current_group:
+        groups.append('/'.join(current_group))
+    return ', '.join(groups)
 
 # Step 1: Fetch the list of course categories
 categories_url = 'https://catalog.ucdavis.edu/courses-subject-code/'
@@ -36,14 +55,7 @@ for name, url in category_links:
 
         # Extract prerequisites
         prereq_element = courseblock.find('p', class_='detail-prerequisite')
-        prerequisites = "None"
-        if prereq_element:
-            if prereq_element.find('a'): 
-                prereqs_links = [a.text for a in prereq_element.find_all('a')]
-                prerequisites = ", ".join(prereqs_links)
-            else:
-                prereq_text = prereq_element.text.strip()
-                prerequisites = prereq_text.replace("Prerequisite(s): ", "", 1)
+        prerequisites = format_course_codes(prereq_element)
 
         courses.append([subject_code, name, course_code, course_name, course_desc, course_units, prerequisites])
 
