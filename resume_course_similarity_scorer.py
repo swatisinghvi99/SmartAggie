@@ -3,7 +3,9 @@ import pandas as pd
 from pyresparser import ResumeParser
 from keybert import KeyBERT
 import spacy
+import sqlite3
 
+sqliteConnection = sqlite3.connect('smartAggie.sqlite')
 nlp = spacy.load("en_core_web_lg")
 
 
@@ -55,21 +57,23 @@ def keyword_parse(resume_data:dict, course_data:pandas.DataFrame, top_n:int =10)
         course_resume_similarity += skill_similarity_score + exp_similarity_score
     course_resume_similarity = course_resume_similarity / len(keywords_list)
     print(
-        f"course description '{merged_course_data.split(' :: ')[0].strip()}' similarity with resume experience: {course_resume_similarity}")
+        f"course description '{merged_course_data.split(':')[0].strip()}' similarity with resume experience: {course_resume_similarity}")
     return course_resume_similarity
 
 
 
-def get_course_similarity(comments_file: str, resume_file: str,sort_by_similarity_score:bool =True) -> pandas.DataFrame:
-    comments_df = pandas.read_csv(comments_file)
+def get_course_similarity(resume_file: str,department:str='',sort_by_similarity_score:bool =True) -> pandas.DataFrame:
+    if department !='':
+        comments_df = pandas.read_sql(sql=f"select * from Courses where \"Subject Name\" = \"{department}\";",con=sqliteConnection)
+    else:
+        comments_df = pandas.read_sql(sql=f"select * from Courses;",con=sqliteConnection)
     resume_data = parse_resume(resume_file)
-    comments_df["merged_data"] = comments_df['Course Name'].astype(str) + " :: " + comments_df['Course Description']
-    grouped_df = comments_df.groupby("Course Code")["merged_data"]
+    grouped_df = comments_df.groupby("Course Code")["Course Description"]
     results = []
     for course, group in grouped_df:
         similarity = keyword_parse(resume_data, group)
         results.append(
-            {'Course Code': course, 'Subject Name': group.iloc[0].split(' :: ')[0], 'Similarity Score': similarity})
+            {'Course Code': course, 'Subject Name': group.iloc[0].split(':')[0], 'Similarity Score': similarity})
 
     result_df = pd.DataFrame(results)
     if sort_by_similarity_score:
@@ -77,6 +81,5 @@ def get_course_similarity(comments_file: str, resume_file: str,sort_by_similarit
     return result_df
 
 
-comments_file = "ucdavis_courses.csv"
 resume_file = "ujwal resume.pdf"
-df = get_course_similarity(comments_file, resume_file)
+df = get_course_similarity(resume_file,department="Communication")
