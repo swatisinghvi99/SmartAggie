@@ -111,7 +111,46 @@ def scrape_professors(school_id =1073):
     finally:
         driver.quit()
 
+
+
+def get_remaining_professors():
+    rmp_gql_endpoint = 'https://www.ratemyprofessors.com/graphql'
+    rmp_gql_headers = {
+        "Authorization": "Basic dGVzdDp0ZXN0",
+    }
+
+    query = {
+        "query": "query TeacherSearchPaginationQuery(\n  $count: Int!\n  $cursor: String\n  $query: TeacherSearchQuery!\n) {\n  search: newSearch {\n    ...TeacherSearchPagination_search_1jWD3d\n  }\n}\n\nfragment TeacherSearchPagination_search_1jWD3d on newSearch {\n  teachers(query: $query, first: $count, after: $cursor) {\n    didFallback\n    edges {\n      cursor\n      node {\n        ...TeacherCard_teacher\n        id\n        __typename\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n    resultCount\n    filters {\n      field\n      options {\n        value\n        id\n      }\n    }\n  }\n}\n\nfragment TeacherCard_teacher on Teacher {\n  id\n  legacyId\n  avgRating\n  numRatings\n  ...CardFeedback_teacher\n  ...CardSchool_teacher\n  ...CardName_teacher\n  ...TeacherBookmark_teacher\n}\n\nfragment CardFeedback_teacher on Teacher {\n  wouldTakeAgainPercent\n  avgDifficulty\n}\n\nfragment CardSchool_teacher on Teacher {\n  department\n  school {\n    name\n    id\n  }\n}\n\nfragment CardName_teacher on Teacher {\n  firstName\n  lastName\n}\n\nfragment TeacherBookmark_teacher on Teacher {\n  id\n  isSaved\n}\n",
+        "variables": {
+            "count": 10000,
+            "query": {
+                "text": "",
+                "schoolID": "U2Nob29sLTEwNzM=",
+                "fallback": True
+            }
+        }
+    }
+
+    response = requests.post(rmp_gql_endpoint, headers = rmp_gql_headers, json=query)
+
+    result = response.json()
+    prof_list = result['data']['search']['teachers']['edges']
+    print(response)
+
+    def fetch_info(dic):
+        name = dic['node']['firstName'] + " " + dic['node']['lastName']
+        link = "https://www.ratemyprofessors.com/professor/" + str(dic['node']['legacyId'])
+        return [name, dic['node']['avgRating'], dic['node']['numRatings'], dic['node']['department'],
+                dic['node']['school']['name'], dic['node']['wouldTakeAgainPercent'], dic['node']['avgDifficulty'], link]
+
+    remaining_profs_df = pd.DataFrame([fetch_info(prof) for prof in prof_list], columns=['Name', 'Quality Rating', 'Total Ratings', 'Department', 'University', 'Would Take Again',
+                                                                                         'Level of Difficulty', 'Link'])
+    remaining_profs_df.to_csv('prof_dat.csv', index=False)
+
+
+get_remaining_professors()
+
 school_id = 1073
 scrape_professors(school_id)
-#fetch_uni_info()
+#get_remaining_professors()
 
