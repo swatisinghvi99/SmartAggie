@@ -1,23 +1,22 @@
 import pandas
 import pandas as pd
-from pyresparser import ResumeParser
+from pydparser import ResumeParser
 from keybert import KeyBERT
 import spacy
 import sqlite3
 
 sqliteConnection = sqlite3.connect('smartAggie.sqlite')
 nlp = spacy.load("en_core_web_lg")
+kw_model = KeyBERT(model='all-mpnet-base-v2')
 
 
-def parse_resume(resume_file:str) ->dict:
+def parse_resume(resume_file: str) -> dict:
     data = ResumeParser(resume_file).get_extracted_data()
     return data
 
 
-def keyword_parse(resume_data:dict, course_data:pandas.DataFrame, top_n:int =10) -> float:
-    kw_model = KeyBERT(model='all-mpnet-base-v2')
-    merged_course_data = ' '.join(course_data)
-    keywords = kw_model.extract_keywords(merged_course_data,
+def keyword_parse(resume_data: dict, course_data: pandas.DataFrame, top_n: int = 10) -> float:
+    keywords = kw_model.extract_keywords(course_data,
                                          keyphrase_ngram_range=(1, 2),
 
                                          stop_words='english',
@@ -33,7 +32,7 @@ def keyword_parse(resume_data:dict, course_data:pandas.DataFrame, top_n:int =10)
     s_similarity_score = 0
     course_resume_similarity = 0
     simi = []
-    #print(keywords_list)
+    # print(keywords_list)
     for course_keyword in keywords_list:
         if 'skills' in resume_data.keys() and len(resume_data['skills']) != 0:
 
@@ -57,12 +56,12 @@ def keyword_parse(resume_data:dict, course_data:pandas.DataFrame, top_n:int =10)
         course_resume_similarity += skill_similarity_score + exp_similarity_score
     course_resume_similarity = course_resume_similarity / len(keywords_list)
     print(
-        f"course description '{merged_course_data.split(':')[0].strip()}' similarity with resume experience: {course_resume_similarity}")
+        f"course description '{course_data.split(':')[0].strip()}' similarity with resume experience: {course_resume_similarity}")
     return course_resume_similarity
 
 
 
-def get_course_similarity(resume_file: str,department:str='',sort_by_similarity_score:bool =True) -> pandas.DataFrame:
+def get_course_similarity_dept(resume_file: str,department:str='',sort_by_similarity_score:bool =True) -> pandas.DataFrame:
     if department !='':
         comments_df = pandas.read_sql(sql=f"select * from Courses where \"Subject Name\" = \"{department}\";",con=sqliteConnection)
     else:
@@ -80,6 +79,11 @@ def get_course_similarity(resume_file: str,department:str='',sort_by_similarity_
         result_df = result_df.sort_values(by='Similarity Score', ascending=False)
     return result_df
 
+def get_course_similarity_course_desc(resume_file: str,course_desc:str=''):
+    resume_data = parse_resume(resume_file)
+    return keyword_parse(resume_data, course_desc)
 
-resume_file = "ujwal resume.pdf"
-df = get_course_similarity(resume_file,department="Communication")
+if __name__ == "__main__":
+    resume_file = "sample resume.pdf"
+    # df = get_course_similarity_dept(resume_file, department="Computer Science Engineering ")
+    print(get_course_similarity_course_desc(resume_file, 'Computer Science'))
